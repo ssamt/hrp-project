@@ -87,7 +87,7 @@ void write_generic_3d(vector<vector<vector<int>>> a, const char* path) {
 vector<vector<int>> student;
 vector<vector<int>> teacher;
 vector<vector<int>> lecture;
-int period = 50;
+int period = 45;
 
 class Optimizer {
 	public:
@@ -238,7 +238,7 @@ class Optimizer {
 			change_l(lec, cl, idx, val);
 		}
 		
-		void revert_change(vector<int> ch) {
+		void revert_change(vector<int>& ch) {
 			if(ch[0] == 0) {
 				change_s(ch[1], ch[2], ch[3]);
 			} else{
@@ -253,7 +253,7 @@ class Optimizer {
 			}
 		}
 		
-		void apply_change(vector<int> ch) {
+		void apply_change(vector<int>& ch) {
 			if(ch[0] == 0) {
 				change_s(ch[1], ch[2], ch[4]);
 			} else{
@@ -281,13 +281,16 @@ class Optimizer {
 			v = rev[p][st][rand()%rev[p][st].size()];
 			int lec = v[0];
 			int c = v[1];
-			if(rand()%2 == 0) {
+			if(rand()%2 == 0 && lecture[lec][0] != 1) {
 				for(i=0; i<student[st].size(); i++) {
 					if(student[st][i] == lec) {
 						break;
 					}
 				}
-				int val = rand()%lecture[lec][0];
+				int val = rand()%(lecture[lec][0]-1);
+				if(val >= s[st][i]) {
+					val++;
+				}
 				update_s(st, i, val, child);
 			} else {
 				for(i=0; i<l[lec][c].size(); i++) {
@@ -295,7 +298,10 @@ class Optimizer {
 						break;
 					}
 				}
-				int val = rand()%period;
+				int val = rand()%(period-1);
+				if(val >= l[lec][c][i]) {
+					val++;
+				}
 				update_l(lec, c, i, val, child);
 			}
 		}
@@ -316,6 +322,41 @@ class Optimizer {
 			}
 		}
 		
+		// sorts branch for performance, be careful
+		bool no_change(vector<vector<int>>& branch, int depth) {
+			int i, j, k;
+			int info_len[2] = {3, 4};
+			sort(branch.begin(), branch.begin()+depth);
+			bool status = true;
+			for(i=0; i<depth; i++) {
+				for(j=i+1; j<depth; j++) {
+					for(k=0; k<info_len[branch[i][0]]; k++) {
+						if(branch[i][k] != branch[j][k]) {
+							goto OUT2;
+						}
+					}
+				}
+OUT2:;
+				j--;
+				multiset<int> con;
+				for(k=i; k<=j; k++) {
+					con.insert(branch[k][info_len[branch[k][0]]]);
+				}
+				for(k=i; k<=j; k++) {
+					auto it = con.find(branch[k][info_len[branch[k][0]]+1]);
+					if(it != con.end()) {
+						con.erase(it);
+					}
+				}
+				if(!con.empty()) {
+					status = false;
+					break;
+				}
+				i = j;
+			}
+			return status;
+		}
+		
 		void iterate(int childs, int depth) {
 			int i, j;
 			change.resize(childs);
@@ -325,10 +366,10 @@ class Optimizer {
 			for(i=0; i<childs; i++) {
 				for(j=0; j<depth; j++) {
 					ranked_update(i);
-					if(idx == -1 || loss < min_loss) {
+					if(idx == -1 || loss < min_loss || (loss == min_loss && j > d)) {
 						min_loss = loss;
 						idx = i;
-						d = j;
+						d = j+1;
 						if(min_loss == 0) {
 							goto OUT;
 						}
@@ -337,8 +378,20 @@ class Optimizer {
 				revert_branch(i);
 			}
 OUT:;
-			for(i=0; i<=d; i++) {
+			for(i=0; i<d; i++) {
 				apply_change(change[idx][i]);
+			}
+			if(rand()%10 == 0) {
+				for(i=0; i<d; i++) {
+					for(j=0; j<change[idx][i].size(); j++) {
+						printf("%d ", change[idx][i][j]);
+					}
+					printf("\n");
+				}
+				if(no_change(change[idx], d)) {
+					printf("No Change\n");
+				}
+				printf("\n");
 			}
 			change.clear();
 		}
@@ -533,18 +586,18 @@ int main() {
 	lecture = read_generic_2d("CSV_files/2016-1/lectures_c.txt");
 	student = read_generic_2d("CSV_files/2016-1/students_c.txt");
 	teacher = read_generic_2d("CSV_files/2016-1/teachers_c.txt");
-	Optimizer op("solution");
-	op.print(true);
-	/*for(i=0; i<=100000; i++) {
+	Optimizer op;
+	for(i=0; i<=100000; i++) {
 		if(i%1000 == 0) {
 			printf("i: %d\n", i);
 			op.print();
 		}
-		op.iterate(100, 3);
+		int prev = op.loss;
+		op.iterate(100, 5);
 		if(op.found()) {
 			printf("Solved at %d iterations", i);
 			op.save("solution");
 			break;
 		}
-	}*/
+	}
 }
