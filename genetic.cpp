@@ -113,7 +113,7 @@ class Optimizer {
         //l: 3d list, (#lecture)x(#classes for lecture)x([class time])
         //cr: 3d list, (#lecture)x(#classes for lecture)x([students])
         //rev: 3d list, (#period)x(#student)x([lecture, class])
-        //rank: 2d list, (0~max-count)x([period, student])
+        //coll: set, {[period, student]}
         //count: 2d list, (#period)x([students])
         //change: 2d list, (#child)x([change vector])
 		vector<vector<int>> s;
@@ -121,7 +121,7 @@ class Optimizer {
 		vector<vector<vector<int>>> l;
 		vector<vector<vector<int>>> cr;
 		vector<vector<vector<vector<int>>>> rev;
-		vector<set<vector<int>>> rank;
+		set<vector<int>> coll;
 		set<vector<int>> push;
 		int maxr;
 		vector<vector<vector<int>>> change;
@@ -179,14 +179,14 @@ class Optimizer {
 		
 		void insert_rank(int r, vector<int> v) {
 			if(r >= 2) {
-				rank[r].insert(v);
+				coll.insert(v);
 				push.insert(v);
 			}
 		}
 		
 		void erase_rank(int r, vector<int> v) {
 			if(r >= 2) {
-				rank[r].erase(v);
+				coll.erase(v);
 				push.erase(v);
 			}
 		}
@@ -209,9 +209,6 @@ class Optimizer {
 			//printf("DEL %d %d %d %d %d\n", p, st, lec, c, prev-1);
 			erase_rank(prev, {p, st});
 			insert_rank(prev-1, {p, st});
-			if(prev == maxr && rank[prev].empty()) {
-				maxr = cal_maxr();
-			}
 			rev[p][st].erase(find(rev[p][st].begin(), rev[p][st].end(), vector<int>{lec, c}));
 		}
 		
@@ -294,8 +291,8 @@ class Optimizer {
 			int r;
 			set<vector<int>>::iterator it;
 			if(push.empty()) {
-				it = rank[maxr].begin();
-				r = rand()%rank[maxr].size();
+				it = coll.begin();
+				r = rand()%coll.size();
 			} else {
 				it = push.begin();
 				r = rand()%push.size();
@@ -427,12 +424,6 @@ OUT:;
 			change.clear();
 		}
 		
-		int cal_maxr() {
-			int i;
-			for(i=rank.size()-1; i>=0 && rank[i].empty(); i--);
-			return i;
-		}
-		
 		void recalculate() {
 			int i, j, k;
 			cr.clear();
@@ -466,7 +457,7 @@ OUT:;
 					}
 				}
 			}
-			rank.clear();
+			coll.clear();
 			int max_rank = 0;
 			for(i=0; i<student.size(); i++) {
 				int a = 0;
@@ -476,7 +467,6 @@ OUT:;
 				}
 				max_rank = max(max_rank, a);
 			}
-			rank.resize(max_rank+1);
 			loss = 0;
 			for(i=0; i<period; i++) {
 				for(j=0; j<student.size(); j++) {
@@ -485,11 +475,10 @@ OUT:;
 					loss += (n-1)*n/2;
 				}
 			}
-			maxr = cal_maxr();
 		}
 		
 		bool found() {
-			return (maxr < 2);
+			return coll.empty();
 		}
 		
 		void save(const char* folder) {
@@ -590,21 +579,13 @@ OUT:;
 					printf("\n");
 				}
 				printf("\n");
-				printf("Rank\n");
-				for(i=0; i<rank.size(); i++) {
-					printf("%d: ", i);
-					for(auto pair:rank[i]) {
-						printf("%d:%d ", pair[0], pair[1]);
-					}
-					printf("\n");
+				printf("Collisions\n");
+				for(auto pair:coll) {
+					printf("%d:%d ", pair[0], pair[1]);
 				}
 				printf("\n");
 				printf("Max Rank: %d\n", maxr);
 				printf("\n");
-			}
-			printf("Rank Summary\n");
-			for(i=2; i<=maxr; i++) {
-				printf("%d: %d\n", i, rank[i].size());
 			}
 			printf("Loss: %d\n", loss);
 		}
