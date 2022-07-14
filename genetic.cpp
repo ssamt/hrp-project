@@ -8,6 +8,14 @@
 
 using namespace std;
 
+//student: 2d list, (#student)x[lectures]
+//teacher: 2d list, (#teacher)x[lectures, class_num]
+//lecture: 1d list, (#lecture)x(class_num, class_time, consecutive)
+vector<vector<int>> student;
+vector<vector<int>> teacher;
+vector<vector<int>> lecture;
+int period = 35;
+
 vector<vector<int>> read_generic_2d(const char* path) {
 	int i, j;
 	int n, m;
@@ -81,30 +89,40 @@ void write_generic_3d(vector<vector<vector<int>>> a, const char* path) {
 	fclose(fp);
 }
 
-//student: 2d list, (#student)x[lectures]
-//teacher: 2d list, (#teacher)x[lectures, class_num]
-//lecture: 1d list, (#lecture)x(class_num, class_time, consecutive)
-vector<vector<int>> student;
-vector<vector<int>> teacher;
-vector<vector<int>> lecture;
-int period = 45;
+void read_files(const char* folder) {
+	char top_folder[20] = "CSV_files/";
+	char path[100];
+	strcpy(path, top_folder);
+	strcat(path, folder);
+	strcat(path, "/students_c.txt");
+	student = read_generic_2d(path);
+	strcpy(path, top_folder);
+	strcat(path, folder);
+	strcat(path, "/teachers_c.txt");
+	teacher = read_generic_2d(path);
+	strcpy(path, top_folder);
+	strcat(path, folder);
+	strcat(path, "/lectures_c.txt");
+	lecture = read_generic_2d(path);
+}
 
 class Optimizer {
 	public:
         //s: 2d list, (#student)x([class])
         //t: 3d list, (#teacher)x(#classes for teacher)x([classes])
         //l: 3d list, (#lecture)x(#classes for lecture)x([class time])
-        //pr: 2d list, (#period)x([lecture, class])
         //cr: 3d list, (#lecture)x(#classes for lecture)x([students])
+        //rev: 3d list, (#period)x(#student)x([lecture, class])
         //rank: 2d list, (0~max-count)x([period, student])
         //count: 2d list, (#period)x([students])
         //change: 2d list, (#child)x([change vector])
 		vector<vector<int>> s;
 		vector<vector<vector<int>>> t;
-		vector<vector<vector<int>>> l;	
+		vector<vector<vector<int>>> l;
 		vector<vector<vector<int>>> cr;
 		vector<vector<vector<vector<int>>>> rev;
 		vector<set<vector<int>>> rank;
+		set<vector<int>> push;
 		int maxr;
 		vector<vector<vector<int>>> change;
 		int loss;
@@ -162,12 +180,14 @@ class Optimizer {
 		void insert_rank(int r, vector<int> v) {
 			if(r >= 2) {
 				rank[r].insert(v);
+				push.insert(v);
 			}
 		}
 		
 		void erase_rank(int r, vector<int> v) {
 			if(r >= 2) {
 				rank[r].erase(v);
+				push.erase(v);
 			}
 		}
 		
@@ -270,14 +290,22 @@ class Optimizer {
 		
 		void ranked_update(int child) {
 			int i;
-			auto it = rank[maxr].begin();
-			int r = rand()%rank[maxr].size();
+			int p, st;
+			int r;
+			set<vector<int>>::iterator it;
+			if(push.empty()) {
+				it = rank[maxr].begin();
+				r = rand()%rank[maxr].size();
+			} else {
+				it = push.begin();
+				r = rand()%push.size();
+			}
 			for(i=0; i<r; i++) {
 				++it;
 			}
 			vector<int> v = *it;
-			int p = v[0];
-			int st = v[1];
+			p = v[0];
+			st = v[1];
 			v = rev[p][st][rand()%rev[p][st].size()];
 			int lec = v[0];
 			int c = v[1];
@@ -358,12 +386,13 @@ OUT2:;
 		}
 		
 		void iterate(int childs, int depth) {
-			int i, j;
+			int i, j, k, l;
 			change.resize(childs);
 			int idx = -1;
 			int d = -1;
 			int min_loss;
 			for(i=0; i<childs; i++) {
+				push.clear();
 				for(j=0; j<depth; j++) {
 					ranked_update(i);
 					if(idx == -1 || loss < min_loss || (loss == min_loss && j > d)) {
@@ -379,9 +408,11 @@ OUT2:;
 			}
 OUT:;
 			for(i=0; i<d; i++) {
+				//printf("*");
 				apply_change(change[idx][i]);
 			}
-			if(rand()%10 == 0) {
+			//printf(" ");
+			/*if(rand()%10 == 0) {
 				for(i=0; i<d; i++) {
 					for(j=0; j<change[idx][i].size(); j++) {
 						printf("%d ", change[idx][i][j]);
@@ -392,7 +423,7 @@ OUT:;
 					printf("No Change\n");
 				}
 				printf("\n");
-			}
+			}*/
 			change.clear();
 		}
 		
@@ -583,17 +614,15 @@ int main() {
 	srand(time(NULL));
 	int i, j;
 	int n, m;
-	lecture = read_generic_2d("CSV_files/2016-1/lectures_c.txt");
-	student = read_generic_2d("CSV_files/2016-1/students_c.txt");
-	teacher = read_generic_2d("CSV_files/2016-1/teachers_c.txt");
+	read_files("2016-1");
+	//student = vector<vector<int>>(student.begin()+133, student.end());
 	Optimizer op;
 	for(i=0; i<=100000; i++) {
 		if(i%1000 == 0) {
-			printf("i: %d\n", i);
-			op.print();
+			printf("i: %d Loss: %d\n", i, op.loss);
 		}
 		int prev = op.loss;
-		op.iterate(100, 5);
+		op.iterate(10, 5);
 		if(op.found()) {
 			printf("Solved at %d iterations", i);
 			op.save("solution");
