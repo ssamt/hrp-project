@@ -3,6 +3,7 @@
 #include <direct.h>
 #include <time.h>
 #include <set>
+#include <map>
 #include <vector>
 #include <algorithm>
 
@@ -14,7 +15,41 @@ using namespace std;
 vector<vector<int>> student;
 vector<vector<int>> teacher;
 vector<vector<int>> lecture;
-int period = 35;
+int period;
+vector<int> days;
+/*vector<vector<int>> cont{
+	{1, 1, 1, 0, 1, 1, 1, 0},
+	{1, 1, 1, 0, 1, 1, 1, 0},
+	{1, 1, 1, 0, 1, 1, 1, 0},
+	{1, 1, 1, 0, 1, 1, 1, 0},
+	{1, 1, 1, 0, 1, 1, 1, 0},
+};*/
+vector<vector<int>> cont{
+	{   1, 1, 0, 1, 1, 1, 1, 0},
+	{1, 1, 1, 0, 1, 1, 1, 1, 0},
+	{1, 1, 1, 0, 1, 0},
+	{1, 1, 1, 0, 1, 0},
+	{1, 1, 1, 0, 1, 1, 0},
+};
+vector<int> flat;
+map<int, int> pd;
+
+void cal_periods() {
+	int i, j;
+	for(i=0; i<cont.size(); i++) {
+		days.push_back(cont[i].size());
+	}
+	period = 0;
+	for(i=0; i<days.size(); i++) {
+		for(j=0; j<days[i]; j++) {
+			if(cont[i][j]) {
+				flat.push_back(period);
+			}
+			pd[period] = i;
+			period++;
+		}
+	}
+}
 
 vector<vector<int>> read_generic_2d(const char* path) {
 	int i, j;
@@ -113,17 +148,17 @@ class Optimizer {
         //l: 3d list, (#lecture)x(#classes for lecture)x([class time])
         //cr: 3d list, (#lecture)x(#classes for lecture)x([students])
         //rev: 3d list, (#period)x(#student)x([lecture, class])
-        //coll: set, {[period, student]}
-        //count: 2d list, (#period)x([students])
+        //coll: set, {[id, period, student](id=0) or  [id, day, lecture](id=1)}
+        //push: same as coll
         //change: 2d list, (#child)x([change vector])
 		vector<vector<int>> s;
 		vector<vector<vector<int>>> t;
 		vector<vector<vector<int>>> l;
 		vector<vector<vector<int>>> cr;
 		vector<vector<vector<vector<int>>>> rev;
+		vector<vector<vector<vector<int>>>> revc;
 		set<vector<int>> coll;
 		set<vector<int>> push;
-		int maxr;
 		vector<vector<vector<int>>> change;
 		int loss;
 		
@@ -153,7 +188,10 @@ class Optimizer {
 				l.push_back({});
 				for(j=0; j<lecture[i][0]; j++) {
 					l[i].push_back({});
-					for(k=0; k<lecture[i][1]; k++) {
+					if(lecture[i][2]) {
+						l[i][j].push_back(flat[rand()%flat.size()]);
+					}
+					for(k=0; k<lecture[i][1]-2*lecture[i][2]; k++) {
 						l[i][j].push_back(rand()%period);
 					}
 				}
@@ -177,28 +215,21 @@ class Optimizer {
 			recalculate();
 		}
 		
-		void insert_rank(int r, vector<int> v) {
-			if(r >= 2) {
-				coll.insert(v);
-				push.insert(v);
-			}
+		void insert_coll(vector<int> v) {
+			coll.insert(v);
+			push.insert(v);
 		}
 		
-		void erase_rank(int r, vector<int> v) {
-			if(r >= 2) {
-				coll.erase(v);
-				push.erase(v);
-			}
+		void erase_coll(vector<int> v) {
+			coll.erase(v);
+			push.erase(v);
 		}
 		
 		void insert_rev(int p, int st, int lec, int c) {
 			int prev = rev[p][st].size();
 			loss += prev;
-			//printf("INS %d %d %d %d %d\n", p, st, lec, c, prev);
-			erase_rank(prev, {p, st});
-			insert_rank(prev+1, {p, st});
-			if(prev+1 > maxr) {
-				maxr = prev+1;
+			if(prev == 1) {
+				insert_coll({0, p, st});
 			}
 			rev[p][st].push_back({lec, c});
 		}
@@ -206,10 +237,28 @@ class Optimizer {
 		void delete_rev(int p, int st, int lec, int c) {
 			int prev = rev[p][st].size();
 			loss -= prev-1;
-			//printf("DEL %d %d %d %d %d\n", p, st, lec, c, prev-1);
-			erase_rank(prev, {p, st});
-			insert_rank(prev-1, {p, st});
+			if(prev == 2) {
+				erase_coll({0, p, st});
+			}
 			rev[p][st].erase(find(rev[p][st].begin(), rev[p][st].end(), vector<int>{lec, c}));
+		}
+		
+		void insert_revc(int day, int lec, int cl, int idx) {
+			int prev = revc[day][lec][cl].size();
+			loss += prev;
+			if(prev == 1) {
+				insert_coll({1, day, lec, cl});
+			}
+			revc[day][lec][cl].push_back(idx);
+		}
+		
+		void delete_revc(int day, int lec, int cl, int idx) {
+			int prev = revc[day][lec][cl].size();
+			loss -= prev-1;
+			if(prev == 2) {
+				erase_coll({1, day, lec, cl});
+			}
+			revc[day][lec][cl].erase(find(revc[day][lec][cl].begin(), revc[day][lec][cl].end(), idx));
 		}
 		
 		void change_s(int st, int idx, int val) {
@@ -220,10 +269,16 @@ class Optimizer {
 			cr[lec][val].push_back(st);
 			for(i=0; i<l[lec][c].size(); i++) {
 				int p = l[lec][c][i];
+				if(lecture[lec][2] && i == 0) {
+					delete_rev(p+1, st, lec, c);
+				}
 				delete_rev(p, st, lec, c);
 			}
 			for(i=0; i<l[lec][val].size(); i++) {
 				int p = l[lec][val][i];
+				if(lecture[lec][2] && i == 0) {
+					insert_rev(p+1, st, lec, val);
+				}
 				insert_rev(p, st, lec, val);
 			}
 			s[st][idx] = val;
@@ -233,9 +288,15 @@ class Optimizer {
 			int i, j;
 			int p = l[lec][cl][idx];
 			for(int st:cr[lec][cl]) {
+				if(lecture[lec][2] && idx == 0) {
+					delete_rev(p+1, st, lec, cl);
+					insert_rev(val+1, st, lec, cl);
+				}
 				delete_rev(p, st, lec, cl);
 				insert_rev(val, st, lec, cl);
 			}
+			delete_revc(pd[p], lec, cl, idx);
+			insert_revc(pd[val], lec, cl, idx);
 			l[lec][cl][idx] = val;
 		}
 		
@@ -287,8 +348,8 @@ class Optimizer {
 		
 		void ranked_update(int child) {
 			int i;
-			int p, st;
 			int r;
+			int val;
 			set<vector<int>>::iterator it;
 			if(push.empty()) {
 				it = coll.begin();
@@ -301,33 +362,64 @@ class Optimizer {
 				++it;
 			}
 			vector<int> v = *it;
-			p = v[0];
-			st = v[1];
-			v = rev[p][st][rand()%rev[p][st].size()];
-			int lec = v[0];
-			int c = v[1];
-			if(rand()%2 == 0 && lecture[lec][0] != 1) {
-				for(i=0; i<student[st].size(); i++) {
-					if(student[st][i] == lec) {
-						break;
+			if(v[0] == 0) {
+				int p = v[1];
+				int st = v[2];
+				v = rev[p][st][rand()%rev[p][st].size()];
+				int lec = v[0];
+				int c = v[1];
+				if(rand()%2 == 0 && lecture[lec][0] != 1) {
+					for(i=0; i<student[st].size(); i++) {
+						if(student[st][i] == lec) {
+							break;
+						}
 					}
+					val = rand()%(lecture[lec][0]-1);
+					if(val >= s[st][i]) {
+						val++;
+					}
+					update_s(st, i, val, child);
+				} else {
+					for(i=0; i<l[lec][c].size(); i++) {
+						if(l[lec][c][i] == p) {
+							break;
+						}
+						if(lecture[lec][2] && i == 0 && l[lec][c][i]+1 == p) {
+							break;
+						}
+					}
+					if(lecture[lec][2] && i == 0) {
+						val = rand()%(flat.size()-1);
+						if(flat[val] >= l[lec][c][0]) {
+							val++;
+						}
+						val = flat[val];
+					} else {
+						val = rand()%(period-1);
+						if(val >= l[lec][c][i]) {
+							val++;
+						}
+					}
+					update_l(lec, c, i, val, child);
 				}
-				int val = rand()%(lecture[lec][0]-1);
-				if(val >= s[st][i]) {
-					val++;
-				}
-				update_s(st, i, val, child);
 			} else {
-				for(i=0; i<l[lec][c].size(); i++) {
-					if(l[lec][c][i] == p) {
-						break;
+				int day = v[1];
+				int lec = v[2];
+				int cl = v[3];
+				int idx = revc[day][lec][cl][rand()%revc[day][lec][cl].size()];
+				if(lecture[lec][2] && idx == 0) {
+					val = rand()%(flat.size()-1);
+					if(flat[val] >= l[lec][cl][0]) {
+						val++;
+					}
+					val = flat[val];
+				} else {
+					val = rand()%(period-1);
+					if(val >= l[lec][cl][i]) {
+						val++;
 					}
 				}
-				int val = rand()%(period-1);
-				if(val >= l[lec][c][i]) {
-					val++;
-				}
-				update_l(lec, c, i, val, child);
+				update_l(lec, cl, idx, val, child);
 			}
 		}
 		
@@ -405,22 +497,8 @@ OUT2:;
 			}
 OUT:;
 			for(i=0; i<d; i++) {
-				//printf("*");
 				apply_change(change[idx][i]);
 			}
-			//printf(" ");
-			/*if(rand()%10 == 0) {
-				for(i=0; i<d; i++) {
-					for(j=0; j<change[idx][i].size(); j++) {
-						printf("%d ", change[idx][i][j]);
-					}
-					printf("\n");
-				}
-				if(no_change(change[idx], d)) {
-					printf("No Change\n");
-				}
-				printf("\n");
-			}*/
 			change.clear();
 		}
 		
@@ -430,7 +508,7 @@ OUT:;
 			for(i=0; i<lecture.size(); i++) {
 				cr.push_back({});
 				for(j=0; j<lecture[i][0]; j++) {
-					cr[i].push_back(vector<int>{});
+					cr[i].push_back({});
 				}
 			}
 			for(i=0; i<s.size(); i++) {
@@ -444,7 +522,7 @@ OUT:;
 			for(i=0; i<period; i++) {
 				rev.push_back({});
 				for(j=0; j<student.size(); j++) {
-					rev[i].push_back(vector<vector<int>>{});
+					rev[i].push_back({});
 				}
 			}
 			for(i=0; i<s.size(); i++) {
@@ -454,25 +532,54 @@ OUT:;
 					for(k=0; k<l[lec][c].size(); k++) {
 						int p = l[lec][c][k];
 						rev[p][i].push_back({lec, c});
+						if(lecture[lec][2] && k == 0) {
+							rev[p+1][i].push_back({lec, c});
+						}
+					}
+				}
+			}
+			revc.clear();
+			for(i=0; i<days.size(); i++) {
+				revc.push_back({});
+				for(j=0; j<lecture.size(); j++) {
+					revc[i].push_back({});
+					for(k=0; k<lecture[j][0]; k++) {
+						revc[i][j].push_back({});
+					}
+				}
+			}
+			for(i=0; i<l.size(); i++) {
+				for(j=0; j<l[i].size(); j++) {
+					for(k=0; k<l[i][j].size(); k++) {
+						revc[pd[l[i][j][k]]][i][j].push_back(k);
 					}
 				}
 			}
 			coll.clear();
-			int max_rank = 0;
 			for(i=0; i<student.size(); i++) {
-				int a = 0;
 				for(j=0; j<student[i].size(); j++) {
 					int lec = student[i][j];
-					a += lecture[lec][1];
 				}
-				max_rank = max(max_rank, a);
 			}
 			loss = 0;
 			for(i=0; i<period; i++) {
 				for(j=0; j<student.size(); j++) {
 					int n = rev[i][j].size();
-					insert_rank(n, {i, j});
+					if(n >= 2) {
+						insert_coll({0, i, j});
+					}
 					loss += (n-1)*n/2;
+				}
+			}
+			for(i=0; i<days.size(); i++) {
+				for(j=0; j<lecture.size(); j++) {
+					for(k=0; k<lecture[j][0]; k++) {
+						int n = revc[i][j][k].size();
+						if(n >= 2) {
+							insert_coll({1, i, j, k});
+						}
+						loss += (n-1)*n/2;
+					}
 				}
 			}
 		}
@@ -498,7 +605,7 @@ OUT:;
 		}
 		
 		void print(bool detail=false) {
-			int i, j, k;
+			int i, j, k, m;
 			printf("%d students\n", s.size());
 			if(detail) {
 				for(i=0; i<s.size(); i++) {
@@ -531,6 +638,7 @@ OUT:;
 			printf("%d lectures\n", l.size());
 			if(detail) {
 				for(i=0; i<l.size(); i++) {
+					printf(lecture[i][2]?"O ":"X ");
 					printf("%d: ", i);
 					for(j=0; j<l[i].size(); j++) {
 						printf("%d:", j);
@@ -548,7 +656,7 @@ OUT:;
 			}
 			printf("%d periods\n", period);
 			if(detail) {
-				printf("Class Reverse\n");
+				printf("Class to Students\n");
 				for(i=0; i<cr.size(); i++) {
 					printf("%d: ", i);
 					for(j=0; j<cr[i].size(); j++) {
@@ -564,7 +672,7 @@ OUT:;
 					printf("\n");
 				}
 				printf("\n");
-				printf("Reverse\n");
+				printf("Period-Student to Classes\n");
 				for(i=0; i<rev.size(); i++) {
 					printf("%d: ", i);
 					for(j=0; j<rev[i].size(); j++) {
@@ -579,12 +687,29 @@ OUT:;
 					printf("\n");
 				}
 				printf("\n");
+				printf("Day-Lecture to Indexes\n");
+				for(i=0; i<revc.size(); i++) {
+					printf("%d: ", i);
+					for(j=0; j<revc[i].size(); j++) {
+						printf("%d: ", j);
+						for(k=0; k<revc[i][j].size(); k++) {
+							if(!revc[i][j][k].empty()) {
+								printf("%d:", k);
+								for(int idx:revc[i][j][k]) {
+									printf("%d,", idx);
+								}
+								printf(" ");
+							}
+						}
+						printf(" ");
+					}
+					printf("\n");
+				}
+				printf("\n");
 				printf("Collisions\n");
 				for(auto pair:coll) {
 					printf("%d:%d ", pair[0], pair[1]);
 				}
-				printf("\n");
-				printf("Max Rank: %d\n", maxr);
 				printf("\n");
 			}
 			printf("Loss: %d\n", loss);
@@ -595,19 +720,20 @@ int main() {
 	srand(time(NULL));
 	int i, j;
 	int n, m;
+	cal_periods();
 	read_files("2016-1");
 	//student = vector<vector<int>>(student.begin()+133, student.end());
-	Optimizer op;
-	for(i=0; i<=100000; i++) {
+	Optimizer op("solution");
+	op.print(true);
+	/*for(i=0; i<=100000; i++) {
 		if(i%1000 == 0) {
 			printf("i: %d Loss: %d\n", i, op.loss);
 		}
-		int prev = op.loss;
 		op.iterate(10, 5);
 		if(op.found()) {
 			printf("Solved at %d iterations", i);
 			op.save("solution");
 			break;
 		}
-	}
+	}*/
 }
