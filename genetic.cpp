@@ -1,13 +1,26 @@
 #include <stdio.h>
 #include <string.h>
 #include <direct.h>
-#include <time.h>
 #include <set>
 #include <map>
 #include <vector>
 #include <algorithm>
 
 using namespace std;
+
+//https://stackoverflow.com/questions/1640258/need-a-fast-random-generator-for-c
+static unsigned long x=123456789, y=362436069, z=521288629;
+unsigned long random() {          //period 2^96-1
+	unsigned long t;
+    x ^= x << 16;
+    x ^= x >> 5;
+    x ^= x << 1;
+    t = x;
+    x = y;
+    y = z;
+    z = t ^ x ^ y;
+    return z;
+}
 
 //student: 2d list, (#student)x[lectures]
 //teacher: 2d list, (#teacher)x[lectures, class_num]
@@ -33,6 +46,7 @@ vector<vector<int>> cont{
 };
 vector<int> flat;
 map<int, int> pd;
+mt19937 ran();
 
 void cal_periods() {
 	int i, j;
@@ -168,7 +182,7 @@ class Optimizer {
 				s.push_back({});
 				for(j=0; j<student[i].size(); j++) {
 					int lec = student[i][j];
-					s[i].push_back(rand()%lecture[lec][0]);
+					s[i].push_back(random()%lecture[lec][0]);
 				}
 			}
 			int idx[lecture.size()] = {};
@@ -189,10 +203,10 @@ class Optimizer {
 				for(j=0; j<lecture[i][0]; j++) {
 					l[i].push_back({});
 					if(lecture[i][2]) {
-						l[i][j].push_back(flat[rand()%flat.size()]);
+						l[i][j].push_back(flat[random()%flat.size()]);
 					}
 					for(k=0; k<lecture[i][1]-2*lecture[i][2]; k++) {
-						l[i][j].push_back(rand()%period);
+						l[i][j].push_back(random()%period);
 					}
 				}
 			}
@@ -353,10 +367,10 @@ class Optimizer {
 			set<vector<int>>::iterator it;
 			if(push.empty()) {
 				it = coll.begin();
-				r = rand()%coll.size();
+				r = random()%coll.size();
 			} else {
 				it = push.begin();
-				r = rand()%push.size();
+				r = random()%push.size();
 			}
 			for(i=0; i<r; i++) {
 				++it;
@@ -365,16 +379,16 @@ class Optimizer {
 			if(v[0] == 0) {
 				int p = v[1];
 				int st = v[2];
-				v = rev[p][st][rand()%rev[p][st].size()];
+				v = rev[p][st][random()%rev[p][st].size()];
 				int lec = v[0];
 				int c = v[1];
-				if(rand()%2 == 0 && lecture[lec][0] != 1) {
+				if(random()%2 == 0 && lecture[lec][0] != 1) {
 					for(i=0; i<student[st].size(); i++) {
 						if(student[st][i] == lec) {
 							break;
 						}
 					}
-					val = rand()%(lecture[lec][0]-1);
+					val = random()%(lecture[lec][0]-1);
 					if(val >= s[st][i]) {
 						val++;
 					}
@@ -389,13 +403,13 @@ class Optimizer {
 						}
 					}
 					if(lecture[lec][2] && i == 0) {
-						val = rand()%(flat.size()-1);
+						val = random()%(flat.size()-1);
 						if(flat[val] >= l[lec][c][0]) {
 							val++;
 						}
 						val = flat[val];
 					} else {
-						val = rand()%(period-1);
+						val = random()%(period-1);
 						if(val >= l[lec][c][i]) {
 							val++;
 						}
@@ -406,15 +420,15 @@ class Optimizer {
 				int day = v[1];
 				int lec = v[2];
 				int cl = v[3];
-				int idx = revc[day][lec][cl][rand()%revc[day][lec][cl].size()];
+				int idx = revc[day][lec][cl][random()%revc[day][lec][cl].size()];
 				if(lecture[lec][2] && idx == 0) {
-					val = rand()%(flat.size()-1);
+					val = random()%(flat.size()-1);
 					if(flat[val] >= l[lec][cl][0]) {
 						val++;
 					}
 					val = flat[val];
 				} else {
-					val = rand()%(period-1);
+					val = random()%(period-1);
 					if(val >= l[lec][cl][i]) {
 						val++;
 					}
@@ -424,17 +438,17 @@ class Optimizer {
 		}
 		
 		void random_update(int child) {
-			if(rand()%2 == 0) {
-				int st = rand()%s.size();
-				int idx = rand()%s[st].size();
+			if(random()%2 == 0) {
+				int st = random()%s.size();
+				int idx = random()%s[st].size();
 				int lec = student[st][idx];
-				int val = rand()%lecture[lec][0];
+				int val = random()%lecture[lec][0];
 				update_s(st, idx, val, child);
 			} else {
-				int lec = rand()%l.size();
-				int cl = rand()%l[lec].size();
-				int idx = rand()%l[lec][cl].size();
-				int val = rand()%period;
+				int lec = random()%l.size();
+				int cl = random()%l[lec].size();
+				int idx = random()%l[lec][cl].size();
+				int val = random()%period;
 				update_l(lec, cl, idx, val, child);
 			}
 		}
@@ -717,15 +731,13 @@ OUT:;
 };
 
 int main() {
-	srand(time(NULL));
 	int i, j;
 	int n, m;
 	cal_periods();
 	read_files("2016-1");
 	//student = vector<vector<int>>(student.begin()+133, student.end());
-	Optimizer op("solution");
-	op.print(true);
-	/*for(i=0; i<=100000; i++) {
+	Optimizer op;
+	for(i=0; i<=100000; i++) {
 		if(i%1000 == 0) {
 			printf("i: %d Loss: %d\n", i, op.loss);
 		}
@@ -735,5 +747,5 @@ int main() {
 			op.save("solution");
 			break;
 		}
-	}*/
+	}
 }
