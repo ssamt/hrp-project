@@ -34,23 +34,23 @@ vector<vector<int>> teacher;
 vector<vector<int>> lecture;
 int period;
 vector<int> days;
-/*vector<vector<int>> cont{
-	{1, 1, 1, 0, 1, 1, 1, 0},
-	{1, 1, 1, 0, 1, 1, 1, 0},
-	{1, 1, 1, 0, 1, 1, 1, 0},
-	{1, 1, 1, 0, 1, 1, 1, 0},
-	{1, 1, 1, 0, 1, 1, 1, 0},
-};*/
 vector<vector<int>> cont{
+	{1, 1, 1, 0, 1, 1, 1, 0},
+	{1, 1, 1, 0, 1, 1, 1, 0},
+	{1, 1, 1, 0, 1, 1, 1, 0},
+	{1, 1, 1, 0, 1, 1, 1, 0},
+	{1, 1, 1, 0, 1, 1, 1, 0},
+};
+/*vector<vector<int>> cont{
 	{   1, 1, 0, 1, 1, 1, 1, 0},
 	{1, 1, 1, 0, 1, 1, 1, 1, 0},
 	{1, 1, 1, 0, 1, 0},
 	{1, 1, 1, 0, 1, 0},
 	{1, 1, 1, 0, 1, 1, 0},
-};
+};*/
 vector<int> flat;
 map<int, int> pd;
-int max_diff = 3;
+int max_diff = 10;
 
 void cal_periods() {
 	int i, j;
@@ -513,8 +513,7 @@ class Optimizer {
 			}
 		}
 		
-		// sorts branch for performance, be careful
-		bool no_change(vector<vector<int>>& branch, int depth) {
+		bool no_change(vector<vector<int>> branch, int depth) {
 			int i, j, k;
 			int info_len[2] = {3, 4};
 			sort(branch.begin(), branch.begin()+depth);
@@ -554,25 +553,29 @@ OUT2:;
 			int idx = -1;
 			int d = -1;
 			int min_loss;
+			int ini_loss = loss;
 			for(i=0; i<childs; i++) {
 				push.clear();
 				for(j=0; j<depth; j++) {
-					ranked_update(i);
-					if(idx == -1 || loss < min_loss || (loss == min_loss && j > d)) {
+					ranked_update(i);loggin
+					if(!no_change(change[i], j+1) && (idx == -1 || loss < min_loss || (loss == min_loss && j > d))) {
 						min_loss = loss;
 						idx = i;
 						d = j+1;
 						if(min_loss == 0) {
 							goto OUT;
 						}
+						if(min_loss < ini_loss) {
+							goto OUT;
+						}
 					}
 				}
 				revert_branch(i);
 			}
-OUT:;
 			for(i=0; i<d; i++) {
 				apply_change(change[idx][i]);
 			}
+OUT:;
 			change.clear();
 		}
 		
@@ -844,22 +847,43 @@ void print_bar(int i, int loss) {
 	printf("Loss: %d\n", loss);
 }
 
+void record(const char* folder, int breadth, int depth, int times) {
+	int cl;
+	int i;
+	read_files(folder);
+	FILE* fp = fopen("log.txt", "a");
+	fprintf(fp, "%s\n", folder);
+	fprintf(fp, "Repeated %d times with Breadth %d Depth %d\n", times, breadth, depth);
+	for(cl=0; cl<times; cl++) {
+		clock_t start = clock();
+		Optimizer op;
+		for(i=0; ; i++) {
+			if(i%1000 == 0) {
+				print_bar(i, op.loss);
+			}
+			if(cl != 0) {
+				printf("!");
+			}
+			op.iterate(breadth, depth);
+			if(cl != 0) {
+				printf("!");
+			}
+			if(op.found()) {
+				printf("Solved at %d iterations\n", i);
+				clock_t end = clock();
+				double duration = (double)(end-start)/CLOCKS_PER_SEC;
+				fprintf(fp, "Solved at %d iterations %f seconds\n", i, duration);
+				op.save("solution");
+				break;
+			}
+		}
+	}
+	fclose(fp);
+}
+
 int main() {
 	int i, j;
 	int n, m;
 	cal_periods();
-	read_files("2016-1");
-	//student = vector<vector<int>>(student.begin()+133, student.end());
-	Optimizer op;
-	for(i=0; ; i++) {
-		if(i%1000 == 0) {
-			print_bar(i, op.loss);
-		}
-		op.iterate(10, 5);
-		if(op.found()) {
-			printf("Solved at %d iterations", i);
-			op.save("solution");
-			break;
-		}
-	}
+	record("2017-1", 12, 5, 1);
 }
