@@ -54,9 +54,9 @@ vector<int> days;
 vector<vector<int>> cont{
 	{   1, 1, 0, 1, 1, 1, 1, 0},
 	{1, 1, 1, 0, 1, 1, 1, 1, 0},
-	{1, 1, 1, 0, 1, 1, 1, 0},
 	{1, 1, 1, 0, 1, 0},
-	{1, 1, 1, 0, 1, 1, 1, 1, 0},
+	{1, 1, 1, 0, 1, 0},
+	{1, 1, 1, 0, 1, 1, 0},
 };
 vector<int> flat;
 map<int, int> pd;
@@ -959,7 +959,7 @@ int graph_size = 90;
 void print_bar(int i, int loss) {
 	int j;
 	printf("i: %06d ", i);
-	int bar = loss;
+	int bar = loss/2;
 	if(bar > graph_size) {
 		bar = graph_size;
 	}
@@ -994,11 +994,11 @@ void record(const char* folder, int breadth, int depth, int times) {
 				op.save("solution");
 				break;
 			}
-			if(duration > 30*60) {
+			/*if(duration > 30*60) {
 				printf("Failed to find solution\n");
 				fprintf(fp, "Failed to find solution\n");
 				break;
-			}
+			}*/
 		}
 	}
 	fclose(fp);
