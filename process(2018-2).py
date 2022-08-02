@@ -30,7 +30,7 @@ def add_students(ws, d):
                 d[id][1].add(lecture)
 
 def add_teachers(ws, d):
-    row = ws.max_row-1
+    row = ws.max_row
     for i in range(2, row+1):
         name = ws.cell(i, 11).value.strip()
         lecture = ws.cell(i, 7).value.strip()

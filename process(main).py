@@ -1,3 +1,8 @@
+'''
+2016-1~2022-1까지의 시간표 중 따로 process 파일이 없는 것들은
+전부 main에서 맨 아래의 변수만 바꿔서 사용이 가능함
+'''
+
 from openpyxl import load_workbook
 from collections import defaultdict
 import csv
@@ -34,8 +39,10 @@ def add_students(ws, d):
                     d[id][1].add(lecture)
 
 def add_teachers(ws, d):
-    row = ws.max_row-1
+    row = ws.max_row
     for i in range(2, row+1):
+        if ws.cell(i, 1).value is None:
+            break
         name = ws.cell(i, 10).value.strip()
         lecture = ws.cell(i, 7).value.strip()
         d[name][lecture] += 1
@@ -91,14 +98,42 @@ def write_lectures():
         for name in lectures:
             lecture_writer.writerow([name]+lectures[name])
 
-wb = load_workbook('KSA시간표/2017학년도 2학기 시간표 및 수강신청 현황_변경 후.xlsx')
+semester = '2022-1'
+workbook_name = {
+    '2017-2':'2017학년도 2학기 시간표 및 수강신청 현황_변경 후.xlsx',
+    '2018-1':'2018학년도 1학기 시간표 및 수강신청 현황_수학과 수정.xlsx',
+    '2020-1':'2020학년도 1학기 시간표 및 수강신청 현황.xlsx',
+    '2020-2':'2020학년도 2학기 시간표 및 수강신청 현황.xlsx',
+    '2021-1':'2021학년도 1학기 시간표 및 수강신청 현황_수정.xlsx',
+    '2021-2':'2021학년도 2학기 시간표 및 수강신청 현황_정정.xlsx',
+    '2022-1':'2022학년도 1학기 시간표 및 수강신청 현황.xlsx',
+}
+wb = load_workbook(f'KSA시간표/{workbook_name[semester]}')
 students = dict()
 teachers = defaultdict(lambda: defaultdict(int))
 lectures = dict()
-ws_1_name = '분반현황(1학년)'
-ws_23_name = '분반 현황(2,3학년)'
+ws_1_name = {
+    '2017-2':'분반현황(1학년)',
+    '2018-1':'분반현황(1학년)',
+    '2020-1':'분반현황(1학년)',
+    '2020-2':'분반현황(1학년)',
+    '2021-1':'분반현황(1학년)',
+    '2021-2':'분반현황(1학년)',
+    '2022-1':'분반현황(1학년)',
+}
+ws_1_name = ws_1_name[semester]
+ws_23_name = {
+    '2017-2':'분반 현황(2,3학년)',
+    '2018-1':'분반현황(2,3학년)',
+    '2020-1':'분반현황(2,3학년)',
+    '2020-2':'분반 현황(2,3학년)',
+    '2021-1':'분반 현황(2,3학년)',
+    '2021-2':'분반현황(2,3학년)',
+    '2022-1':'분반 현황(2,3학년)',
+}
+ws_23_name = ws_23_name[semester]
 ws_lecture_name = '담당교원 및 분반별'
-folder = '2017-2'
+folder = semester
 path = f'CSV_files/{folder}'
 if not os.path.exists(path):
     os.makedirs(path)
