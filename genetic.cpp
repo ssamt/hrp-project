@@ -2,6 +2,7 @@
 #include <string.h>
 #include <direct.h>
 #include <time.h>
+#include <limits.h>
 #include <iostream>
 #include <set>
 #include <map>
@@ -10,6 +11,8 @@
 #include <random>
 
 using namespace std;
+
+bool USE_PREF = false;
 
 default_random_engine engine(time(NULL));
 uniform_int_distribution<int> dist(0, INT_MAX);
@@ -50,6 +53,13 @@ vector<int> days;
 	{1, 1, 1, 0, 1, 1, 1, 0},
 	{1, 1, 1, 0, 1, 1, 1, 0},
 	{1, 1, 1, 0, 1, 1, 1, 0},
+};
+vector<vector<int>> avoid{
+	{1, 0, 0, 1, 0, 0, 0, 0},
+	{1, 0, 0, 1, 0, 0, 0, 0},
+	{1, 0, 0, 1, 0, 0, 0, 0},
+	{1, 0, 0, 1, 0, 0, 0, 0},
+	{1, 0, 0, 1, 0, 0, 0, 0},
 };*/
 vector<vector<int>> cont{
 	{   1, 1, 0, 1, 1, 1, 1, 0},
@@ -58,8 +68,16 @@ vector<vector<int>> cont{
 	{1, 1, 1, 0, 1, 0},
 	{1, 1, 1, 0, 1, 1, 0},
 };
+vector<vector<int>> avoid{
+	{   0, 0, 1, 0, 0, 0, 0, 0},
+	{1, 0, 0, 1, 0, 0, 0, 0, 0},
+	{1, 0, 0, 1, 0, 0},
+	{1, 0, 0, 1, 0, 0},
+	{1, 0, 0, 1, 0, 0, 0},
+};
 vector<int> flat;
-map<int, int> pd;
+vector<int> pd;
+vector<int> pa;
 int max_diff = 3;
 
 void cal_periods() {
@@ -73,7 +91,8 @@ void cal_periods() {
 			if(cont[i][j]) {
 				flat.push_back(period);
 			}
-			pd[period] = i;
+			pd.push_back(i);
+			pa.push_back(avoid[i][j]);
 			period++;
 		}
 	}
@@ -195,8 +214,8 @@ class Optimizer {
 		set<vector<int>> coll;
 		set<vector<int>> push;
 		vector<vector<vector<int>>> change;
-		int loss;
-		
+		int loss, pref;
+
 		Optimizer() {
 			int i, j, k;
 			for(i=0; i<student.size(); i++) {
@@ -237,7 +256,7 @@ class Optimizer {
 			}
 			recalculate();
 		}
-		
+
 		Optimizer(const char* folder) {
 			char path[100] = "save/";
 			strcat(path, folder);
@@ -253,17 +272,17 @@ class Optimizer {
 			l = read_generic_3d(file);
 			recalculate();
 		}
-		
+
 		void insert_coll(vector<int> v) {
 			coll.insert(v);
 			push.insert(v);
 		}
-		
+
 		void erase_coll(vector<int> v) {
 			coll.erase(v);
 			push.erase(v);
 		}
-		
+
 		void insert_rev(int p, int st, int lec, int cl) {
 			int prev = rev[p][st].size();
 			loss += prev;
@@ -271,8 +290,11 @@ class Optimizer {
 				insert_coll({0, p, st});
 			}
 			rev[p][st].push_back({lec, cl});
+			if(pa[p]) {
+				pref++;
+			}
 		}
-		
+
 		void delete_rev(int p, int st, int lec, int cl) {
 			int prev = rev[p][st].size();
 			loss -= prev-1;
@@ -280,8 +302,11 @@ class Optimizer {
 				erase_coll({0, p, st});
 			}
 			rev[p][st].erase(find(rev[p][st].begin(), rev[p][st].end(), vector<int>{lec, cl}));
+			if(pa[p]) {
+				pref--;
+			}
 		}
-		
+
 		void insert_revt(int p, int tc, int lec, int cl) {
 			int prev = revt[p][tc].size();
 			loss += prev;
@@ -290,7 +315,7 @@ class Optimizer {
 			}
 			revt[p][tc].push_back({lec, cl});
 		}
-		
+
 		void delete_revt(int p, int tc, int lec, int cl) {
 			int prev = revt[p][tc].size();
 			loss -= prev-1;
@@ -299,7 +324,7 @@ class Optimizer {
 			}
 			revt[p][tc].erase(find(revt[p][tc].begin(), revt[p][tc].end(), vector<int>{lec, cl}));
 		}
-		
+
 		void insert_revc(int day, int lec, int cl, int idx) {
 			int prev = revc[day][lec][cl].size();
 			loss += prev;
@@ -308,7 +333,7 @@ class Optimizer {
 			}
 			revc[day][lec][cl].push_back(idx);
 		}
-		
+
 		void delete_revc(int day, int lec, int cl, int idx) {
 			int prev = revc[day][lec][cl].size();
 			loss -= prev-1;
@@ -317,7 +342,7 @@ class Optimizer {
 			}
 			revc[day][lec][cl].erase(find(revc[day][lec][cl].begin(), revc[day][lec][cl].end(), idx));
 		}
-		
+
 		void insert_cr(int lec, int cl, int st) {
 			if(cr[lec][cl].size() == lim[lec][0]-1) {
 				erase_coll({2, lec, cl});
@@ -328,7 +353,7 @@ class Optimizer {
 			cr[lec][cl].push_back(st);
 			loss += class_loss(lec, cl);
 		}
-		
+
 		void delete_cr(int lec, int cl, int st) {
 			if(cr[lec][cl].size() == lim[lec][0]) {
 				insert_coll({2, lec, cl});
@@ -339,7 +364,7 @@ class Optimizer {
 			cr[lec][cl].erase(find(cr[lec][cl].begin(), cr[lec][cl].end(), st));
 			loss += class_loss(lec, cl);
 		}
-		
+
 		void change_s(int st, int idx, int val) {
 			int i, j;
 			int lec = student[st][idx];
@@ -362,7 +387,7 @@ class Optimizer {
 			}
 			s[st][idx] = val;
 		}
-		
+
 		void change_l(int lec, int cl, int idx, int val) {
 			int i, j;
 			int p = l[lec][cl][idx];
@@ -385,7 +410,7 @@ class Optimizer {
 			insert_revc(pd[val], lec, cl, idx);
 			l[lec][cl][idx] = val;
 		}
-		
+
 		void update_s(int st, int idx, int val, int child) {
 			if(change.size() < child+1) {
 				change.resize(child+1);
@@ -393,7 +418,7 @@ class Optimizer {
 			change[child].push_back({0, st, idx, s[st][idx], val});
 			change_s(st, idx, val);
 		}
-		
+
 		void update_l(int lec, int cl, int idx, int val, int child) {
 			if(change.size() < child+1) {
 				change.resize(child+1);
@@ -401,7 +426,7 @@ class Optimizer {
 			change[child].push_back({1, lec, cl, idx, l[lec][cl][idx], val});
 			change_l(lec, cl, idx, val);
 		}
-		
+
 		void revert_change(vector<int>& ch) {
 			if(ch[0] == 0) {
 				change_s(ch[1], ch[2], ch[3]);
@@ -409,14 +434,14 @@ class Optimizer {
 				change_l(ch[1], ch[2], ch[3], ch[4]);
 			}
 		}
-		
+
 		void revert_branch(int child) {
 			int i;
 			for(i=(int)change[child].size()-1; i>=0; i--) {
 				revert_change(change[child][i]);
 			}
 		}
-		
+
 		void apply_change(vector<int>& ch) {
 			if(ch[0] == 0) {
 				change_s(ch[1], ch[2], ch[4]);
@@ -424,14 +449,14 @@ class Optimizer {
 				change_l(ch[1], ch[2], ch[3], ch[5]);
 			}
 		}
-		
+
 		void apply_branch(int child) {
 			int i;
 			for(i=0; i<change[child].size(); i++) {
 				apply_change(change[child][i]);
 			}
 		}
-		
+
 		void ranked_update(int child) {
 			int i;
 			int r;
@@ -566,7 +591,7 @@ class Optimizer {
 				update_l(lec, c, i, val, child);
 			}
 		}
-		
+
 		void random_update(int child) {
 			if(random()%2 == 0) {
 				int st = random()%s.size();
@@ -582,7 +607,7 @@ class Optimizer {
 				update_l(lec, cl, idx, val, child);
 			}
 		}
-		
+
 		bool no_change(vector<vector<int>> branch, int depth) {
 			int i, j, k;
 			int info_len[2] = {3, 4};
@@ -616,28 +641,38 @@ OUT2:;
 			}
 			return status;
 		}
-		
+
 		void iterate(int childs, int depth) {
 			int i, j, k, l;
 			change.resize(childs);
 			int idx = -1;
 			int d = -1;
-			int min_loss;
-			int ini_loss = loss;
+			int min_loss, min_pref;
 			for(i=0; i<childs; i++) {
 				push.clear();
 				for(j=0; j<depth; j++) {
 					ranked_update(i);
-					if(!no_change(change[i], j+1) && (idx == -1 || loss < min_loss || (loss == min_loss && j > d))) {
-						min_loss = loss;
-						idx = i;
-						d = j+1;
-						if(min_loss == 0) {
-							goto OUT;
-						}
-						if(min_loss < ini_loss) {
-							goto OUT;
-						}
+					if(USE_PREF) {
+                        vector<int> state{loss, pref};
+                        vector<int> newstate{min_loss, min_pref};
+                        if(!no_change(change[i], j+1) && (idx == -1 || state < newstate || (state == newstate && j > d))) {
+                            min_loss = loss;
+                            min_pref = pref;
+                            idx = i;
+                            d = j+1;
+                            if(min_loss == 0) {
+                                goto OUT;
+                            }
+                        }
+					} else {
+                        if(!no_change(change[i], j+1) && (idx == -1 || loss < min_loss || (loss == min_loss && j > d))) {
+                            min_loss = loss;
+                            idx = i;
+                            d = j+1;
+                            if(min_loss == 0) {
+                                goto OUT;
+                            }
+                        }
 					}
 				}
 				revert_branch(i);
@@ -648,7 +683,7 @@ OUT2:;
 OUT:;
 			change.clear();
 		}
-		
+
 		void recalculate() {
 			int i, j, k, m;
 			lim.clear();
@@ -747,6 +782,7 @@ OUT:;
 				}
 			}
 			loss = 0;
+			pref = 0;
 			for(i=0; i<period; i++) {
 				for(j=0; j<student.size(); j++) {
 					int n = rev[i][j].size();
@@ -754,6 +790,9 @@ OUT:;
 						insert_coll({0, i, j});
 					}
 					loss += (n-1)*n/2;
+					if(pa[i]) {
+						pref += n;
+					}
 				}
 				for(j=0; j<teacher.size(); j++) {
 					int n = revt[i][j].size();
@@ -784,16 +823,16 @@ OUT:;
 				}
 			}
 		}
-		
+
 		int class_loss(int lec, int cl) {
 			int num = cr[lec][cl].size();
 			return max(0, max(lim[lec][0]-num, num-lim[lec][1]));
 		}
-		
+
 		bool found() {
 			return coll.empty();
 		}
-		
+
 		void save(const char* folder) {
 			char path[100] = "save/";
 			strcat(path, folder);
@@ -809,7 +848,7 @@ OUT:;
 			strcat(file, "/l_c.txt");
 			write_generic_3d(l, file);
 		}
-		
+
 		void print(bool detail=false) {
 			int i, j, k, m;
 			printf("%d students\n", s.size());
@@ -955,7 +994,7 @@ OUT:;
 		}
 };
 
-int graph_size = 90;
+int graph_size = 80;
 void print_bar(int i, int loss) {
 	int j;
 	printf("i: %06d ", i);
@@ -967,7 +1006,7 @@ void print_bar(int i, int loss) {
 		printf("*");
 	}
 	printf(" ");
-	printf("Loss: %d\n", loss);
+	printf("Loss: %d ", loss);
 }
 
 void record(const char* folder, int breadth, int depth, int times) {
@@ -975,7 +1014,9 @@ void record(const char* folder, int breadth, int depth, int times) {
 	int i;
 	read_files(folder);
 	FILE* fp = fopen("log.txt", "a");
+	printf("%s\n", folder);
 	fprintf(fp, "%s\n", folder);
+	printf("Repeated %d times with Breadth %d Depth %d\n", times, breadth, depth);
 	fprintf(fp, "Repeated %d times with Breadth %d Depth %d\n", times, breadth, depth);
 	for(j=0; j<times; j++) {
 		printf("Attempt %d\n", j);
@@ -984,21 +1025,25 @@ void record(const char* folder, int breadth, int depth, int times) {
 		for(i=0; ; i++) {
 			if(i%1000 == 0) {
 				print_bar(i, op.loss);
+				if(USE_PREF) {
+                    printf("Pref: %d ", op.pref);
+				}
+				printf("\n");
 			}
 			op.iterate(breadth, depth);
 			end = clock();
 			double duration = (double)(end-start)/CLOCKS_PER_SEC;
 			if(op.found()) {
-				printf("Solved at %d iterations\n", i);
-				fprintf(fp, "Solved at %d iterations %f seconds\n", i, duration);
+				printf("Solved at %d iterations %d changes %f seconds\n", i, i*breadth*depth, duration);
+				fprintf(fp, "Solved at %d iterations %d changes %f seconds\n", i, i*breadth*depth, duration);
 				op.save("solution");
 				break;
 			}
-			/*if(duration > 30*60) {
+			if(i*breadth*depth > 1e5) {
 				printf("Failed to find solution\n");
 				fprintf(fp, "Failed to find solution\n");
 				break;
-			}*/
+			}
 		}
 	}
 	fclose(fp);
@@ -1008,9 +1053,15 @@ int main() {
 	int i, j;
 	int n, m;
 	cal_periods();
-	record("2016-1", 10, 1, 1);
+	for(int b=4; b<=16; b+=2) {
+        for(int d=1; d<=3; d++) {
+            for(i=0; i<folders.size(); i++) {
+                record(folders[i], b, d, 1);
+            }
+        }
+	}
 	/*read_files("2016-1");
-	Optimizer op;
+	Optimizer op("solution");
 	op.print(true);*/
 }
 

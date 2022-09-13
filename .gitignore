@@ -1,6 +1,8 @@
 .idea
+__pycache__
 
 KSA시간표
 save
 *.exe
+*.o
 log.txt
